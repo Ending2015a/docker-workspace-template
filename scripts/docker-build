@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+usage="
+Usage:  $(basename "$0") [OPTIONS]
+
+Build docker images
+
+Options:
+  -h, --help          Print this message
+      --base          Build base docker
+      --docker-name   Name of docker image to build
+      --no-cache      Build without caching
+      --base-image    Build from the specified base image
+"
+
+EXTRA_ARGS=""
+
+while [[ $# -gt 0 ]]
+do
+key="${1}"
+
+case $key in
+  -h|--help)
+    echo -e "$usage" >&2
+    exit
+    ;;
+  --base)
+    shift
+    BUILD_BASE=1
+    ;;
+  --docker-name)
+    shift
+    DOCKER_NAME="${1}"
+    shift
+    ;;
+  --no-cache)
+    shift
+    EXTRA_ARGS="${EXTRA_ARGS} --no-cache"
+    ;;
+  --base-image)
+    shift
+    EXTRA_ARGS="${EXTRA_ARGS} --build-arg BASE_IMAGE=${1}"
+    BASE_IMAGE_SPEFICIED=1
+    shift
+    ;;
+  *) # unknown arg
+    echo "Unknown args: ${key}" >&2
+    exit 1
+    ;;
+esac
+done
+
+# choose which docker file
+if [ -z "${BUILD_BASE+x}" ]; then
+  DOCKER_FILE="docker/workspace.Dockerfile"
+else
+  DOCKER_FILE="docker/base.Dockerfile"
+fi
+
+# default image name
+if [ -z "${DOCKER_NAME+x}" ]; then
+  if [ -z "${BUILD_BASE+x}" ]; then
+    DOCKER_NAME="workspace"
+  else
+    DOCKER_NAME="workspace-base"
+  fi
+fi
+
+# default base image
+if [ -z "${BASE_IMAGE_SPEFICIED+x}" ]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --build-arg BASE_IMAGE=workspace-base"
+fi
+
+echo "Build docker image: ${DOCKER_NAME}"
+
+# start docker building process
+set -x
+DOCKER_BUILDKIT=1 docker build . \
+  --build-arg INCUBATOR_VER=$(date +%Y%m%d-%H%M%S) \
+  --file $DOCKER_FILE \
+  $EXTRA_ARGS \
+  -t $DOCKER_NAME
+set +x

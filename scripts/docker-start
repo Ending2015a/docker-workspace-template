@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+EXTRA_ARGS=""
+COMMAND=""
+
+usage="
+Usage:  $(basename "$0") [OPTIONS]
+
+Start docker containers
+
+Options:
+  -h, --help          Print this message
+      --docker-name   Name of docker image to build
+  -b  --bash          Start the docker container with bash command
+      --shm           Share memory size
+"
+
+while [[ $# -gt 0 ]]
+do
+key="${1}"
+
+case $key in
+  -h|--help)
+    echo -e "$usage" >&2
+    exit
+    ;;
+  --docker-name)
+    shift
+    DOCKER_NAME="${1}"
+    shift
+    ;;
+  -b|--bash)
+    shift
+    COMMAND="bash"
+    EXTRA_ARGS="${EXTRA_ARGS} -it"
+    ;;
+  --shm)
+    shift
+    EXTRA_ARGS="${EXTRA_ARGS} --shm-size ${1}"
+    shift
+    ;;
+  *) # unknown arg
+    echo "Unknown args: ${key}" >&2
+    exit 1
+    ;;
+esac
+done
+
+if [ -z "${DOCKER_NAME+x}" ]; then
+  DOCKER_NAME="workspace"
+fi
+
+# Enable screen access inside docker container
+xhost
+if [[ $? -eq 0 ]]; then
+  xhost +
+  EXTRA_ARGS="${EXTRA_ARGS} -e DISPLAY=${DISPLAY} -v /tmp/.X11-unix:/tmp/.X11-unix"
+  echo "Enable screen"
+fi
+
+
+docker run \
+  -v $(realpath ./data):/data \
+  -v $(realpath ./configs):/configs \
+  -v $(realpath ./src):/src \
+  -v $(realpath ./scripts):/scripts \
+  -v $(realpath ./output):/output \
+  -v $(realpath ./dataset):/dataset \
+  --runtime=nvidia \
+  --rm \
+  ${EXTRA_ARGS} \
+  ${DOCKER_NAME} \
+  ${COMMAND}
